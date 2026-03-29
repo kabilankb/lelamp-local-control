@@ -67,16 +67,14 @@ Demo rules:
         self._set_system_volume(100)
 
     def _set_system_volume(self, volume_percent: int):
-        """Internal helper to set system volume"""
+        """Internal helper to set system volume (works on local Linux without Pi)"""
         try:
-            cmd_line = ["sudo", "-u", "pi", "amixer", "sset", "Line", f"{volume_percent}%"]
-            cmd_line_dac = ["sudo", "-u", "pi", "amixer", "sset", "Line DAC", f"{volume_percent}%"]
-            cmd_line_hp = ["sudo", "-u", "pi", "amixer", "sset", "HP", f"{volume_percent}%"]
-            
-            
-            subprocess.run(cmd_line, capture_output=True, text=True, timeout=5)
-            subprocess.run(cmd_line_dac, capture_output=True, text=True, timeout=5)
-            subprocess.run(cmd_line_hp, capture_output=True, text=True, timeout=5)
+            # Try common ALSA mixer controls for local Linux systems
+            for control in ["Master", "Line", "Line DAC", "HP"]:
+                subprocess.run(
+                    ["amixer", "sset", control, f"{volume_percent}%"],
+                    capture_output=True, text=True, timeout=5
+                )
         except Exception:
             pass  # Silently fail during initialization
 
