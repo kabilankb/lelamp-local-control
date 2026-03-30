@@ -2,7 +2,7 @@
 
 ![](./assets/images/Banner.png)
 
-This repository holds the code for controlling LeLamp. The runtime provides a comprehensive control system for the robotic lamp, including motor control, recording/replay functionality, voice interaction, and testing capabilities.
+This repository holds the code for controlling LeLamp. The runtime provides a comprehensive control system for the robotic lamp, including motor control, recording/replay functionality, voice interaction, a web control panel, and testing capabilities. Multiple agent backends are supported: web panel and voice agent (free, no API keys via Ollama), Claude API, Gemini API, and LiveKit + OpenAI.
 
 [LeLamp](https://github.com/humancomputerlab/LeLamp) is an open source robot lamp based on [Apple's Elegnt](https://machinelearning.apple.com/research/elegnt-expressive-functional-movement), made by [[Human Computer Lab]](https://www.humancomputerlab.com/)
 
@@ -20,18 +20,25 @@ LeLamp Runtime is a Python-based control system that interfaces with the hardwar
 
 ```
 lelamp_runtime/
-├── main.py                 # Main runtime entry point
-├── pyproject.toml         # Project configuration and dependencies
-├── lelamp/                # Core package
-│   ├── setup_motors.py    # Motor configuration and setup
-│   ├── calibrate.py       # Motor calibration utilities
-│   ├── list_recordings.py # List all recorded motor movements
-│   ├── record.py          # Movement recording functionality
-│   ├── replay.py          # Movement replay functionality
-│   ├── follower/          # Follower mode functionality
-│   ├── leader/            # Leader mode functionality
-│   └── test/              # Hardware testing modules
-└── uv.lock               # Dependency lock file
+├── main.py                 # LiveKit voice agent (Raspberry Pi)
+├── smooth_animation.py     # LiveKit agent with smooth animations
+├── claude_agent.py         # Claude API text agent (local)
+├── gemini_agent.py         # Gemini API text agent (local)
+├── voice_agent.py          # Offline voice agent (Whisper + Ollama + edge-tts)
+├── web_agent.py            # Web control panel (Flask + Ollama)
+├── templates/              # Web UI templates
+├── pyproject.toml          # Project configuration and dependencies
+├── lelamp/                 # Core package
+│   ├── setup_motors.py     # Motor configuration and setup
+│   ├── calibrate.py        # Motor calibration utilities
+│   ├── list_recordings.py  # List all recorded motor movements
+│   ├── record.py           # Movement recording functionality
+│   ├── replay.py           # Movement replay functionality
+│   ├── follower/           # Follower mode functionality
+│   ├── leader/             # Leader mode functionality
+│   ├── service/            # Motor and RGB service layer
+│   └── test/               # Hardware testing modules
+└── uv.lock                 # Dependency lock file
 ```
 
 ## Installation
@@ -254,11 +261,59 @@ Note: Boot time might vary with each run and extended usage (>1 hour) can burn t
 
 ## Sample Apps
 
-Sample apps to test LeLamp's capabilities.
+Multiple agent options are available depending on your setup. For local development without a Raspberry Pi, see [LOCAL_SETUP.md](./LOCAL_SETUP.md).
 
-### LiveKit Voice Agent
+### Web Control Panel (No API keys needed)
 
-To run a conversational agent on LeLamp, create a .env file with the following content in the root of this directory in your Raspberry Pi.
+Browser-based control panel with chat, LED control, movement replay, and hands-free voice interaction. Uses Ollama (llama3) locally — fully free.
+
+```bash
+# Prerequisites: install and start Ollama with llama3
+ollama pull llama3
+
+# Run the web panel
+uv run python web_agent.py --port /dev/ttyACM0 --id lelamp
+```
+
+Then open http://localhost:5000 in your browser. Supports voice via the browser's Web Speech API (Chrome/Edge) with server-side fallback.
+
+### Offline Voice Agent (No API keys needed)
+
+Terminal-based voice agent using faster-whisper (ASR), Ollama (LLM), and edge-tts (TTS). Fully local, no internet required after model download.
+
+```bash
+# Prerequisites: install and start Ollama with llama3
+ollama pull llama3
+
+# Run the voice agent
+uv run python voice_agent.py --port /dev/ttyACM0 --id lelamp
+```
+
+### Claude API Agent
+
+Text-based console agent powered by Claude. Requires an Anthropic API key.
+
+```bash
+# Set your API key in .env
+echo "ANTHROPIC_API_KEY=your_key" > .env
+
+uv run python claude_agent.py --port /dev/ttyACM0 --id lelamp
+```
+
+### Gemini API Agent
+
+Text-based console agent powered by Google Gemini. Requires a Google AI API key.
+
+```bash
+# Set your API key in .env
+echo "GOOGLE_API_KEY=your_key" > .env
+
+uv run python gemini_agent.py --port /dev/ttyACM0 --id lelamp
+```
+
+### LiveKit Voice Agent (Raspberry Pi)
+
+For running on a Raspberry Pi with LiveKit + OpenAI. Create a `.env` file with:
 
 ```bash
 OPENAI_API_KEY=
@@ -296,7 +351,7 @@ In case your lamp is not `lelamp`, change the id of the lamp inside main.py:
 
 ```py
 async def entrypoint(ctx: agents.JobContext):
-    agent = LeLamp(lamp_id="lelamp") # <- Chnage the name here
+    agent = LeLamp(lamp_id="lelamp") # <- Change the name here
 ```
 
 ## Contributing
