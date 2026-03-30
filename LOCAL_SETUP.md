@@ -1,6 +1,6 @@
 # LeLamp Local Setup Guide (Without Raspberry Pi)
 
-This guide explains how to run the LeLamp robot on a local Linux system (desktop/laptop) without a Raspberry Pi. The servo motors connect directly via USB, and the RGB LEDs are simulated in the terminal.
+This guide explains how to run the LeLamp robot on a local Linux system (desktop/laptop) without a Raspberry Pi. The servo motors connect directly via USB, and the RGB LEDs are simulated in the terminal. Includes web control panel with hands-free voice interaction.
 
 ## Table of Contents
 
@@ -14,6 +14,7 @@ This guide explains how to run the LeLamp robot on a local Linux system (desktop
 - [Testing](#testing)
 - [Recording & Replaying Movements](#recording--replaying-movements)
 - [Running the Agent](#running-the-agent)
+- [Web Control Panel](#web-control-panel)
 - [Available Recordings](#available-recordings)
 - [Troubleshooting](#troubleshooting)
 
@@ -22,40 +23,35 @@ This guide explains how to run the LeLamp robot on a local Linux system (desktop
 ## Architecture Overview
 
 ```
-┌──────────────────────────────────────────────────┐
-│                 Local Linux PC                    │
-│                                                   │
-│  ┌─────────────┐   ┌──────────────┐              │
-│  │ Claude API   │   │ LiveKit +    │              │
-│  │ (text chat)  │   │ OpenAI       │              │
-│  │ claude_agent │   │ (voice chat) │              │
-│  │    .py       │   │ main.py      │              │
-│  └──────┬───────┘   └──────┬───────┘              │
-│         │                  │                      │
-│         └────────┬─────────┘                      │
-│                  │                                │
-│  ┌───────────────▼────────────────┐               │
-│  │         Service Layer          │               │
-│  │  ┌──────────┐  ┌───────────┐  │               │
-│  │  │  Motors   │  │    RGB    │  │               │
-│  │  │ Service   │  │  Service  │  │               │
-│  │  └─────┬────┘  └─────┬────┘  │               │
-│  └────────┼──────────────┼──────┘               │
-│           │              │                        │
-│    USB Serial        Terminal                     │
-│    /dev/ttyACM0      Simulator                    │
-│           │          (colored                     │
-│           │           blocks)                     │
-└───────────┼──────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────┐
+│                    Local Linux PC                        │
+│                                                          │
+│  ┌────────────┐ ┌────────────┐ ┌──────────┐ ┌────────┐ │
+│  │ Web Panel  │ │  Voice     │ │ Claude   │ │ Gemini │ │
+│  │ web_agent  │ │  Agent     │ │ Agent    │ │ Agent  │ │
+│  │   .py      │ │ voice_agent│ │ claude_  │ │ gemini_│ │
+│  │ + ASR/TTS  │ │   .py      │ │ agent.py │ │ agent  │ │
+│  └─────┬──────┘ └─────┬──────┘ └────┬─────┘ └───┬────┘ │
+│        │              │             │            │      │
+│        └──────┬───────┴─────────────┴────────────┘      │
+│               │                                          │
+│  ┌────────────▼─────────────────┐                        │
+│  │       Service Layer          │                        │
+│  │  ┌──────────┐ ┌───────────┐  │    ┌──────────────┐   │
+│  │  │  Motors   │ │    RGB    │  │    │   Ollama     │   │
+│  │  │ Service   │ │  Service  │  │    │  (llama3)    │   │
+│  │  └─────┬────┘ └─────┬────┘  │    └──────────────┘   │
+│  └────────┼─────────────┼──────┘                        │
+│           │             │                                │
+│     USB Serial      Terminal                             │
+│    /dev/ttyACM0     Simulator                            │
+│           │                                              │
+└───────────┼──────────────────────────────────────────────┘
             │
     ┌───────▼────────┐
     │ Feetech Servo  │
-    │ Controller     │
-    │ Board (USB)    │
-    ├────────────────┤
-    │ STS3215 Servos │
-    │ x5 (daisy      │
-    │    chain)      │
+    │ Controller USB │
+    │ + STS3215 x5   │
     └────────────────┘
 ```
 
@@ -66,20 +62,26 @@ This guide explains how to run the LeLamp robot on a local Linux system (desktop
 | Servo Motors | USB serial via Pi | USB serial directly to PC |
 | RGB LEDs | WS281x via Pi GPIO | Terminal simulator (colored blocks) |
 | Volume Control | `sudo -u pi amixer` | Standard `amixer` |
-| Voice Agent | LiveKit + OpenAI only | Claude API (text) or LiveKit + OpenAI (voice) |
+| Voice Agent | LiveKit + OpenAI only | Browser ASR/TTS + Ollama (free) |
 | NeoPixel lib | `rpi-ws281x` required | Auto-detected, falls back to software |
 | Python | System Python on Pi | Python 3.12 via `uv` |
+| Web UI | None | Full control panel at localhost:5000 |
 
 ### Modified Files
 
 - `lelamp/service/rgb/rgb_service.py` — Auto-detects Pi hardware; uses console simulator on local systems
 - `main.py` — Volume control uses standard Linux `amixer` (no `sudo -u pi`)
 - `smooth_animation.py` — Same volume control fix
-- `pyproject.toml` — Added `anthropic` SDK dependency
+- `pyproject.toml` — Added `anthropic`, `google-genai`, `ollama`, `flask-socketio`, `faster-whisper`, `edge-tts` dependencies
 
 ### New Files
 
-- `claude_agent.py` — Claude API-powered text agent (no LiveKit/OpenAI needed)
+- `web_agent.py` — Web control panel with chat, LED viz, voice ASR/TTS (Ollama)
+- `voice_agent.py` — Offline terminal voice agent (Whisper + Ollama + Edge TTS)
+- `claude_agent.py` — Claude API text agent
+- `gemini_agent.py` — Gemini API text agent
+- `templates/index.html` — Web control panel UI
+- `templates/landing.html` — Landing page (like lelamp.com)
 - `LOCAL_SETUP.md` — This document
 
 ---
@@ -92,6 +94,11 @@ This guide explains how to run the LeLamp robot on a local Linux system (desktop
 - **System packages**:
   ```bash
   sudo apt-get install -y portaudio19-dev alsa-utils
+  ```
+- **Ollama** (for free local LLM):
+  ```bash
+  curl -fsSL https://ollama.com/install.sh | sh
+  ollama pull llama3
   ```
 
 ### Hardware Required
@@ -107,8 +114,8 @@ This guide explains how to run the LeLamp robot on a local Linux system (desktop
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/humancomputerlab/lelamp_runtime.git
-cd lelamp_runtime
+git clone https://github.com/kabilankb/lelamp-local-control.git
+cd lelamp-local-control
 
 # 2. Install uv (if not installed)
 curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -296,13 +303,54 @@ timestamp,base_yaw.pos,base_pitch.pos,elbow_pitch.pos,wrist_roll.pos,wrist_pitch
 
 ## Running the Agent
 
-### Option 1: Claude API Agent (Text Chat — Recommended for Local)
+### Option 1: Web Control Panel (Recommended)
 
-No LiveKit or OpenAI account needed. Just an Anthropic API key.
+Full browser UI with hands-free voice chat, LED visualization, color control, and all 11 movement buttons. Uses Ollama (free, local).
 
-**Setup:**
+```bash
+uv run python web_agent.py --port /dev/ttyACM0 --id lelamp
+```
 
-Create `.env` in the project root:
+Open **http://localhost:5000** in Chrome/Edge.
+
+- **Landing page** at `/` — project overview
+- **Control panel** at `/control` — chat, voice, LEDs, movements
+
+Features:
+- Always-on ASR — just speak, no button needed (uses Browser Web Speech API)
+- TTS — LeLamp speaks back (Browser TTS or Edge TTS neural voice)
+- Live 8x5 LED grid visualization
+- RGB color picker with sliders
+- All 11 movement buttons
+
+### Option 2: Offline Voice Agent (Terminal)
+
+Fully offline voice agent with Whisper ASR + Ollama + Edge TTS.
+
+```bash
+uv run python voice_agent.py --port /dev/ttyACM0 --id lelamp
+```
+
+Options:
+```bash
+# Faster but less accurate ASR
+uv run python voice_agent.py --port /dev/ttyACM0 --whisper-model tiny
+
+# More accurate ASR
+uv run python voice_agent.py --port /dev/ttyACM0 --whisper-model small
+```
+
+Color indicators:
+- Blue LED — Listening
+- Yellow LED — Processing speech
+- Purple LED — Thinking (Ollama)
+- Green LED — Speaking
+
+### Option 3: Claude API Agent (Text Chat)
+
+Requires Anthropic API key with credits.
+
+**Setup** — Add to `.env`:
 ```
 ANTHROPIC_API_KEY=sk-ant-...
 ```
@@ -312,39 +360,30 @@ ANTHROPIC_API_KEY=sk-ant-...
 uv run python claude_agent.py --port /dev/ttyACM0 --id lelamp
 ```
 
-**What happens:**
-- Interactive text chat in the terminal
-- Claude automatically calls tools to move motors and change LED colors
-- Type messages, Claude responds with text + physical expressions
+### Option 4: Gemini API Agent (Text Chat)
 
+Requires Google Gemini API key.
+
+**Setup** — Add to `.env`:
 ```
-You: hey there!
-  [tool] play_recording({"recording_name": "excited"})
-  [result] Playing: excited
-  [tool] set_rgb_solid({"red": 255, "green": 200, "blue": 50})
-  [result] Set solid color RGB(255,200,50)
-
-LeLamp: *whirrs excitedly* Oh FINALLY, someone talks to me!
+GOOGLE_API_KEY=your-gemini-key
 ```
 
-### Option 2: LiveKit + OpenAI Voice Agent (Original)
+**Run:**
+```bash
+uv run python gemini_agent.py --port /dev/ttyACM0 --id lelamp
+```
+
+### Option 5: LiveKit + OpenAI Voice Agent (Original)
 
 Requires LiveKit and OpenAI accounts.
 
-**Setup:**
-
-Create `.env`:
+**Setup** — Add to `.env`:
 ```
 OPENAI_API_KEY=sk-...
 LIVEKIT_URL=wss://...
 LIVEKIT_API_KEY=...
 LIVEKIT_API_SECRET=...
-```
-
-Get LiveKit secrets:
-```bash
-lk app env -w
-cat .env.local
 ```
 
 **Run:**
@@ -356,25 +395,63 @@ uv run main.py console
 uv run smooth_animation.py console
 ```
 
+### All Agents Summary
+
+| Agent | Command | LLM | Voice | Cost |
+|-------|---------|-----|-------|------|
+| Web Panel | `uv run python web_agent.py` | Ollama (local) | Browser ASR + TTS | Free |
+| Voice Agent | `uv run python voice_agent.py` | Ollama (local) | Whisper + Edge TTS | Free |
+| Claude Agent | `uv run python claude_agent.py` | Claude Sonnet | Text only | Paid |
+| Gemini Agent | `uv run python gemini_agent.py` | Gemini 2.0 Flash | Text only | Free tier |
+| LiveKit Agent | `uv run main.py console` | OpenAI Realtime | Full voice | Paid |
+
+---
+
+## Web Control Panel
+
+### Pages
+
+| URL | Description |
+|-----|-------------|
+| `http://localhost:5000` | Landing page — project overview, features, setup guide |
+| `http://localhost:5000/control` | Control panel — chat, voice, LEDs, movements |
+
+### Control Panel Features
+
+**Chat** — Type messages or speak hands-free. LeLamp responds with text, movements, and LED colors.
+
+**Voice (ASR/TTS):**
+- Always-on speech recognition — just speak (Chrome/Edge required)
+- Auto-sends after 0.8s of silence
+- TTS reads responses aloud (toggle on/off)
+- Two TTS modes: Browser (fast) or Edge TTS (better quality, neural voice)
+- ASR pauses during TTS to avoid hearing itself
+
+**LED Display** — Live 8x5 grid showing current LED colors in real-time.
+
+**Color Control** — RGB sliders (0-255) with preview and Apply button.
+
+**Movements** — All 11 pre-loaded expressions as clickable buttons.
+
 ---
 
 ## Available Recordings
 
-Pre-loaded expressive movements:
+All 11 pre-loaded expressive movements:
 
-| Recording | Description |
-|-----------|-------------|
-| `curious` | Inquisitive head tilt |
-| `excited` | Energetic bouncing motion |
-| `happy_wiggle` | Joyful side-to-side wiggle |
-| `headshake` | Disapproving head shake (no) |
-| `idle` | Subtle breathing/resting motion (loops) |
-| `nod` | Agreeing nod (yes) |
-| `sad` | Drooping, disappointed posture |
-| `scanning` | Looking around the room |
-| `shock` | Startled jump reaction |
-| `shy` | Bashful ducking motion |
-| `wake_up` | Power-on startup sequence |
+| Recording | Emoji | Description |
+|-----------|-------|-------------|
+| `curious` | &#128064; | Inquisitive head tilt |
+| `excited` | &#127881; | Energetic bouncing motion |
+| `happy_wiggle` | &#128522; | Joyful side-to-side wiggle |
+| `headshake` | &#128528; | Disapproving head shake (no) |
+| `idle` | &#128564; | Subtle breathing/resting motion (loops) |
+| `nod` | &#128077; | Agreeing nod (yes) |
+| `sad` | &#128546; | Drooping, disappointed posture |
+| `scanning` | &#128269; | Looking around the room |
+| `shock` | &#9889; | Startled jump reaction |
+| `shy` | &#128563; | Bashful ducking motion |
+| `wake_up` | &#9728;&#65039; | Power-on startup sequence |
 
 ---
 
@@ -412,6 +489,13 @@ sudo usermod -a -G dialout $USER
 
 This is expected on local systems without a Raspberry Pi. The `_SoftwareStrip` class in `rgb_service.py` prints colored Unicode blocks to simulate LED output. To use real WS281x LEDs, run on a Raspberry Pi with `uv sync --extra hardware`.
 
+### Voice Not Working in Browser
+
+- Use **Chrome or Edge** — Firefox does not support Web Speech API
+- Allow microphone access when prompted
+- Check that no other app is using the mic
+- Falls back to server-side Whisper ASR if browser ASR is unavailable
+
 ### `ModuleNotFoundError: No module named 'lelamp'`
 
 Make sure you're running from the project directory:
@@ -427,6 +511,20 @@ sudo apt-get install -y portaudio19-dev
 uv sync
 ```
 
+### Ollama Not Running
+
+```
+ConnectionError: Failed to connect to Ollama
+```
+
+```bash
+# Start Ollama service
+ollama serve
+
+# In another terminal, verify model is available
+ollama list
+```
+
 ### Claude API Credit Error
 
 ```
@@ -434,6 +532,14 @@ anthropic.BadRequestError: Your credit balance is too low
 ```
 
 Add credits at [console.anthropic.com/settings/billing](https://console.anthropic.com/settings/billing).
+
+### Gemini API Quota Exhausted
+
+```
+google.genai.errors.ClientError: 429 RESOURCE_EXHAUSTED
+```
+
+Wait for quota reset or enable billing at [aistudio.google.com](https://aistudio.google.com).
 
 ### Motor Shaking/Vibrating
 

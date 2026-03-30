@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LeLamp — Local Control</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #050507;
+            --bg-secondary: #0a0a10;
+            --bg-card: #0f0f1a;
+            --border: #1a1a2e;
+            --text-primary: #f0f0f5;
+            --text-secondary: #8888aa;
+            --text-muted: #555577;
+            --accent-orange: #f59e0b;
+            --accent-red: #ef4444;
+            --accent-purple: #8b5cf6;
+            --accent-blue: #3b82f6;
+            --accent-green: #22c55e;
+            --accent-pink: #ec4899;
+            --gradient-warm: linear-gradient(135deg, #f59e0b, #ef4444, #ec4899);
+            --gradient-cool: linear-gradient(135deg, #8b5cf6, #3b82f6, #22c55e);
+            --font-display: 'Space Grotesk', sans-serif;
+            --font-body: 'Inter', sans-serif;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        html { scroll-behavior: smooth; }
+
+        body {
+            font-family: var(--font-body);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            overflow-x: hidden;
+        }
+
+        /* ===== NAV ===== */
+        nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 100;
+            padding: 20px 40px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            backdrop-filter: blur(20px);
+            background: rgba(5, 5, 7, 0.8);
+            border-bottom: 1px solid rgba(26, 26, 46, 0.5);
+        }
+
+        .nav-logo {
+            font-family: var(--font-display);
+            font-size: 22px;
+            font-weight: 700;
+            text-decoration: none;
+            background: var(--gradient-warm);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 32px;
+            align-items: center;
+        }
+
+        .nav-links a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+
+        .nav-links a:hover { color: var(--text-primary); }
+
+        .nav-btn {
+            padding: 10px 24px;
+            background: var(--text-primary);
+            color: var(--bg-primary);
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 13px;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+
+        .nav-btn:hover { opacity: 0.9; transform: translateY(-1px); }
+
+        /* ===== HERO ===== */
+        .hero {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 120px 40px 80px;
+            position: relative;
+        }
+
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, rgba(245, 158, 11, 0.08) 0%, transparent 70%);
+            pointer-events: none;
+        }
+
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 18px;
+            background: rgba(139, 92, 246, 0.1);
+            border: 1px solid rgba(139, 92, 246, 0.2);
+            border-radius: 100px;
+            font-size: 13px;
+            color: var(--accent-purple);
+            margin-bottom: 32px;
+        }
+
+        .hero-badge span {
+            width: 6px; height: 6px; border-radius: 50%;
+            background: var(--accent-green);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        .hero h1 {
+            font-family: var(--font-display);
+            font-size: clamp(48px, 8vw, 96px);
+            font-weight: 800;
+            line-height: 1.05;
+            margin-bottom: 24px;
+            letter-spacing: -2px;
+        }
+
+        .hero h1 .gradient {
+            background: var(--gradient-warm);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .hero p {
+            font-size: 18px;
+            color: var(--text-secondary);
+            max-width: 560px;
+            line-height: 1.7;
+            margin-bottom: 48px;
+        }
+
+        .hero-buttons {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .btn-primary {
+            padding: 16px 36px;
+            background: var(--text-primary);
+            color: var(--bg-primary);
+            border: none;
+            border-radius: 12px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(255,255,255,0.1); }
+
+        .btn-secondary {
+            padding: 16px 36px;
+            background: transparent;
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            font-size: 15px;
+            font-weight: 500;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-secondary:hover { border-color: var(--text-secondary); transform: translateY(-2px); }
+
+        .hero-visual {
+            margin-top: 80px;
+            position: relative;
+            width: 100%;
+            max-width: 900px;
+        }
+
+        .lamp-ascii {
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.4;
+            color: var(--accent-orange);
+            opacity: 0.6;
+            white-space: pre;
+            text-align: center;
+        }
+
+        /* ===== FEATURES ===== */
+        .features {
+            padding: 120px 40px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .section-label {
+            font-size: 13px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: var(--accent-purple);
+            margin-bottom: 16px;
+        }
+
+        .section-title {
+            font-family: var(--font-display);
+            font-size: clamp(32px, 4vw, 52px);
+            font-weight: 700;
+            margin-bottom: 16px;
+            letter-spacing: -1px;
+        }
+
+        .section-desc {
+            font-size: 16px;
+            color: var(--text-secondary);
+            max-width: 500px;
+            line-height: 1.6;
+            margin-bottom: 64px;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+        }
+
+        .feature-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 32px;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .feature-card:hover {
+            border-color: #2a2a4a;
+            transform: translateY(-4px);
+        }
+
+        .feature-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+        }
+
+        .feature-card:nth-child(1)::before { background: var(--accent-orange); }
+        .feature-card:nth-child(2)::before { background: var(--accent-purple); }
+        .feature-card:nth-child(3)::before { background: var(--accent-blue); }
+        .feature-card:nth-child(4)::before { background: var(--accent-green); }
+        .feature-card:nth-child(5)::before { background: var(--accent-pink); }
+        .feature-card:nth-child(6)::before { background: var(--accent-red); }
+
+        .feature-icon {
+            font-size: 28px;
+            margin-bottom: 20px;
+            display: block;
+        }
+
+        .feature-card h3 {
+            font-family: var(--font-display);
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .feature-card p {
+            font-size: 14px;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        /* ===== HOW IT WORKS ===== */
+        .how-it-works {
+            padding: 120px 40px;
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--border);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .how-inner {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .steps {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 32px;
+            margin-top: 64px;
+        }
+
+        .step {
+            text-align: center;
+            position: relative;
+        }
+
+        .step-number {
+            width: 56px;
+            height: 56px;
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: var(--font-display);
+            font-size: 22px;
+            font-weight: 700;
+            margin: 0 auto 20px;
+            border: 1px solid var(--border);
+        }
+
+        .step:nth-child(1) .step-number { background: rgba(245, 158, 11, 0.1); color: var(--accent-orange); border-color: rgba(245, 158, 11, 0.2); }
+        .step:nth-child(2) .step-number { background: rgba(139, 92, 246, 0.1); color: var(--accent-purple); border-color: rgba(139, 92, 246, 0.2); }
+        .step:nth-child(3) .step-number { background: rgba(59, 130, 246, 0.1); color: var(--accent-blue); border-color: rgba(59, 130, 246, 0.2); }
+        .step:nth-child(4) .step-number { background: rgba(34, 197, 94, 0.1); color: var(--accent-green); border-color: rgba(34, 197, 94, 0.2); }
+
+        .step h3 {
+            font-family: var(--font-display);
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .step p {
+            font-size: 13px;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        /* ===== ARCHITECTURE ===== */
+        .architecture {
+            padding: 120px 40px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .arch-diagram {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 48px;
+            margin-top: 64px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+            color: var(--text-secondary);
+            overflow-x: auto;
+            white-space: pre;
+        }
+
+        .arch-diagram .highlight { color: var(--accent-orange); }
+        .arch-diagram .purple { color: var(--accent-purple); }
+        .arch-diagram .blue { color: var(--accent-blue); }
+        .arch-diagram .green { color: var(--accent-green); }
+
+        /* ===== AGENTS ===== */
+        .agents {
+            padding: 120px 40px;
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--border);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .agents-inner {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .agents-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+            margin-top: 64px;
+        }
+
+        .agent-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 36px;
+            transition: all 0.3s;
+        }
+
+        .agent-card:hover { border-color: #2a2a4a; transform: translateY(-2px); }
+
+        .agent-tag {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 16px;
+        }
+
+        .agent-tag.free { background: rgba(34, 197, 94, 0.1); color: var(--accent-green); }
+        .agent-tag.paid { background: rgba(245, 158, 11, 0.1); color: var(--accent-orange); }
+
+        .agent-card h3 {
+            font-family: var(--font-display);
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .agent-card .agent-sub {
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-bottom: 16px;
+        }
+
+        .agent-card p {
+            font-size: 14px;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        .agent-card code {
+            display: block;
+            margin-top: 16px;
+            padding: 12px 16px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            color: var(--accent-green);
+        }
+
+        /* ===== RECORDINGS ===== */
+        .recordings {
+            padding: 120px 40px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .recordings-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+            gap: 12px;
+            margin-top: 64px;
+        }
+
+        .recording-chip {
+            padding: 16px 20px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            text-align: center;
+            transition: all 0.2s;
+        }
+
+        .recording-chip:hover { border-color: var(--accent-purple); transform: scale(1.02); }
+
+        .recording-chip .emoji { font-size: 24px; display: block; margin-bottom: 8px; }
+        .recording-chip .name { font-size: 13px; font-weight: 600; }
+        .recording-chip .desc { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+
+        /* ===== CTA ===== */
+        .cta {
+            padding: 120px 40px;
+            text-align: center;
+            position: relative;
+        }
+
+        .cta::before {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 500px;
+            height: 400px;
+            background: radial-gradient(circle, rgba(139, 92, 246, 0.06) 0%, transparent 70%);
+            pointer-events: none;
+        }
+
+        .cta h2 {
+            font-family: var(--font-display);
+            font-size: clamp(32px, 5vw, 56px);
+            font-weight: 700;
+            margin-bottom: 20px;
+            letter-spacing: -1px;
+        }
+
+        .cta p {
+            font-size: 16px;
+            color: var(--text-secondary);
+            max-width: 480px;
+            margin: 0 auto 40px;
+            line-height: 1.6;
+        }
+
+        /* ===== FOOTER ===== */
+        footer {
+            padding: 40px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        footer .footer-brand {
+            font-family: var(--font-display);
+            font-weight: 600;
+            font-size: 14px;
+            color: var(--text-muted);
+        }
+
+        footer .footer-links {
+            display: flex;
+            gap: 24px;
+        }
+
+        footer .footer-links a {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 13px;
+            transition: color 0.2s;
+        }
+
+        footer .footer-links a:hover { color: var(--text-secondary); }
+
+        /* ===== RESPONSIVE ===== */
+        @media (max-width: 900px) {
+            .features-grid { grid-template-columns: 1fr; }
+            .steps { grid-template-columns: repeat(2, 1fr); }
+            .agents-grid { grid-template-columns: 1fr; }
+            nav { padding: 16px 20px; }
+            .nav-links { gap: 16px; }
+            .hero { padding: 100px 20px 60px; }
+            .features, .how-it-works, .architecture, .agents, .recordings, .cta { padding: 80px 20px; }
+        }
+
+        @media (max-width: 600px) {
+            .steps { grid-template-columns: 1fr; }
+            .nav-links a:not(.nav-btn) { display: none; }
+        }
+
+        /* Scroll reveal */
+        .reveal {
+            opacity: 0;
+            transform: translateY(30px);
+            transition: opacity 0.6s ease, transform 0.6s ease;
+        }
+
+        .reveal.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- NAV -->
+    <nav>
+        <a href="#" class="nav-logo">LeLamp</a>
+        <div class="nav-links">
+            <a href="#features">Features</a>
+            <a href="#how">Setup</a>
+            <a href="#agents">Agents</a>
+            <a href="https://github.com/kabilankb/lelamp-local-control" target="_blank">GitHub</a>
+            <a href="/control" class="nav-btn">Open Control Panel</a>
+        </div>
+    </nav>
+
+    <!-- HERO -->
+    <section class="hero">
+        <div class="hero-badge">
+            <span></span> Local Control — No Raspberry Pi Required
+        </div>
+        <h1>
+            An <span class="gradient">emotional</span> robot<br>
+            on <span class="gradient">your</span> system
+        </h1>
+        <p>
+            Control your LeLamp robot directly from your local Linux machine.
+            Voice interaction, expressive movements, and colorful LEDs —
+            all running locally with zero cloud dependency.
+        </p>
+        <div class="hero-buttons">
+            <a href="/control" class="btn-primary">
+                Launch Control Panel
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </a>
+            <a href="https://github.com/kabilankb/lelamp-local-control" target="_blank" class="btn-secondary">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+                View Source
+            </a>
+        </div>
+        <div class="hero-visual">
+            <div class="lamp-ascii">
+                    .-========-.
+                  .'            '.
+                 /   .-======-.   \
+                |   /  LELAMP  \   |
+                |   |  ~~~~~~  |   |
+                |   \__________/   |
+                 \                /
+                  '-.          .-'
+                     |   ||   |
+                     |   ||   |
+                    _|   ||   |_
+                   |____====____|
+            </div>
+        </div>
+    </section>
+
+    <!-- FEATURES -->
+    <section class="features" id="features">
+        <div class="reveal">
+            <div class="section-label">Features</div>
+            <div class="section-title">Everything runs locally</div>
+            <div class="section-desc">No cloud, no Pi, no subscriptions. Your robot, your system, your control.</div>
+        </div>
+        <div class="features-grid">
+            <div class="feature-card reveal">
+                <span class="feature-icon">&#9881;</span>
+                <h3>5-Axis Servo Control</h3>
+                <p>Control 5 Feetech STS3215 servos via USB serial. Base yaw, base pitch, elbow, wrist roll, and wrist pitch for full articulation.</p>
+            </div>
+            <div class="feature-card reveal">
+                <span class="feature-icon">&#127912;</span>
+                <h3>40 RGB LEDs</h3>
+                <p>8x5 LED grid for expressive lighting. Terminal simulator on local systems, or real WS281x NeoPixels on Raspberry Pi.</p>
+            </div>
+            <div class="feature-card reveal">
+                <span class="feature-icon">&#127908;</span>
+                <h3>Voice Interaction</h3>
+                <p>Hands-free conversation with always-on ASR and TTS. Browser Web Speech API or server-side Whisper + Edge TTS.</p>
+            </div>
+            <div class="feature-card reveal">
+                <span class="feature-icon">&#129302;</span>
+                <h3>AI-Powered Personality</h3>
+                <p>Sarcastic, expressive robot personality powered by Ollama (free), Claude, Gemini, or OpenAI. Your choice of brain.</p>
+            </div>
+            <div class="feature-card reveal">
+                <span class="feature-icon">&#127916;</span>
+                <h3>Record & Replay</h3>
+                <p>Physically pose the lamp to record movements, then replay them. 11 pre-loaded expressions including nod, excited, shy, and more.</p>
+            </div>
+            <div class="feature-card reveal">
+                <span class="feature-icon">&#127760;</span>
+                <h3>Web Control Panel</h3>
+                <p>Beautiful browser UI with live chat, LED visualization, color picker, and movement buttons. Open localhost:5000 and go.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- HOW IT WORKS -->
+    <section class="how-it-works" id="how">
+        <div class="how-inner">
+            <div class="reveal">
+                <div class="section-label">Getting Started</div>
+                <div class="section-title">Up and running in 4 steps</div>
+            </div>
+            <div class="steps">
+                <div class="step reveal">
+                    <div class="step-number">1</div>
+                    <h3>Clone & Install</h3>
+                    <p>Clone the repo and run <code>uv sync</code>. All 152 packages install automatically.</p>
+                </div>
+                <div class="step reveal">
+                    <div class="step-number">2</div>
+                    <h3>Connect USB</h3>
+                    <p>Plug the Feetech servo controller into your PC via USB. Run <code>lerobot-find-port</code> to detect it.</p>
+                </div>
+                <div class="step reveal">
+                    <div class="step-number">3</div>
+                    <h3>Setup & Calibrate</h3>
+                    <p>Assign motor IDs one by one, then calibrate the range of motion for each joint.</p>
+                </div>
+                <div class="step reveal">
+                    <div class="step-number">4</div>
+                    <h3>Launch</h3>
+                    <p>Pick your agent — web panel, voice agent, or text chat — and start interacting.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ARCHITECTURE -->
+    <section class="architecture" id="arch">
+        <div class="reveal">
+            <div class="section-label">Architecture</div>
+            <div class="section-title">How it connects</div>
+        </div>
+        <div class="arch-diagram reveal"><span class="highlight">Your Linux PC</span>
+    &#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;
+    &#9474;                                               &#9474;
+    &#9474;  <span class="purple">Web UI</span>  &#9472;&#9472;&#9472;  <span class="blue">Flask + SocketIO</span>  &#9472;&#9472;&#9472;  <span class="green">Ollama</span>   &#9474;
+    &#9474;  (Browser)     (Server)          (llama3)  &#9474;
+    &#9474;       &#9474;              &#9474;                      &#9474;
+    &#9474;   ASR / TTS     &#9484;&#9472;&#9472;&#9472;&#9472;&#9524;&#9472;&#9472;&#9472;&#9472;&#9488;               &#9474;
+    &#9474;                 &#9474;         &#9474;               &#9474;
+    &#9474;            <span class="highlight">Motors</span>    <span class="highlight">RGB LEDs</span>          &#9474;
+    &#9474;           Service   Service           &#9474;
+    &#9474;              &#9474;         &#9474;               &#9474;
+    &#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9532;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9532;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;
+               &#9474;         &#9474;
+          USB Serial   Terminal
+         /dev/ttyACM0  Simulator
+               &#9474;
+    &#9484;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9524;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;
+    &#9474; <span class="highlight">Feetech Servo</span>  &#9474;
+    &#9474; Controller USB &#9474;
+    &#9474; + STS3215 x5   &#9474;
+    &#9492;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;</div>
+    </section>
+
+    <!-- AGENTS -->
+    <section class="agents" id="agents">
+        <div class="agents-inner">
+            <div class="reveal">
+                <div class="section-label">Choose Your Agent</div>
+                <div class="section-title">4 ways to interact</div>
+                <div class="section-desc">Pick the agent that fits your setup. Mix and match freely.</div>
+            </div>
+            <div class="agents-grid">
+                <div class="agent-card reveal">
+                    <span class="agent-tag free">Free</span>
+                    <h3>Web Control Panel</h3>
+                    <div class="agent-sub">Ollama + Browser ASR/TTS</div>
+                    <p>Full web UI with hands-free voice chat, LED visualization, color picker, and movement buttons. Just speak — no buttons needed.</p>
+                    <code>uv run python web_agent.py</code>
+                </div>
+                <div class="agent-card reveal">
+                    <span class="agent-tag free">Free</span>
+                    <h3>Offline Voice Agent</h3>
+                    <div class="agent-sub">Ollama + Whisper + Edge TTS</div>
+                    <p>Terminal-based voice agent. Speak into your mic, LeLamp responds with movement and speech. 100% offline capable.</p>
+                    <code>uv run python voice_agent.py</code>
+                </div>
+                <div class="agent-card reveal">
+                    <span class="agent-tag paid">API Key</span>
+                    <h3>Claude Agent</h3>
+                    <div class="agent-sub">Anthropic Claude Sonnet</div>
+                    <p>Text chat powered by Claude with tool use. The most capable conversational experience with precise motor and LED control.</p>
+                    <code>uv run python claude_agent.py</code>
+                </div>
+                <div class="agent-card reveal">
+                    <span class="agent-tag paid">API Key</span>
+                    <h3>Gemini Agent</h3>
+                    <div class="agent-sub">Google Gemini 2.0 Flash</div>
+                    <p>Text chat powered by Gemini with tool use. Free tier available with usage limits.</p>
+                    <code>uv run python gemini_agent.py</code>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- RECORDINGS -->
+    <section class="recordings" id="recordings">
+        <div class="reveal">
+            <div class="section-label">Expressions</div>
+            <div class="section-title">11 pre-loaded movements</div>
+            <div class="section-desc">Record your own or use the built-in expressive animations.</div>
+        </div>
+        <div class="recordings-grid">
+            <div class="recording-chip reveal"><span class="emoji">&#128064;</span><div class="name">Curious</div><div class="desc">Inquisitive tilt</div></div>
+            <div class="recording-chip reveal"><span class="emoji">&#127881;</span><div class="name">Excited</div><div class="desc">Energetic bounce</div></div>
+            <div class="recording-chip reveal"><span class="emoji">&#128522;</span><div class="name">Happy Wiggle</div><div class="desc">Joyful sway</div></div>
+            <div class="recording-chip reveal"><span class="emoji">&#128528;</span><div class="name">Headshake</div><div class="desc">Disapproval</div></div>
+            <div class="recording-chip reveal"><span class="emoji">&#128564;</span><div class="name">Idle</div><div class="desc">Subtle breathing</div></div>
+            <div class="recording-chip reveal"><span class="emoji">&#128077;</span><div class="name">Nod</div><div class="desc">Agreement</div></div>
+            <div class="recording-chip reveal"><span class="emoji">&#128546;</span><div class="name">Sad</div><div class="desc">Drooping posture</div></div>
+            <div class="recording-chip reveal"><span class="emoji">&#128269;</span><div class="name">Scanning</div><div class="desc">Looking around</div></div>
+            <div class="recording-chip reveal"><span class="emoji">&#9889;</span><div class="name">Shock</div><div class="desc">Startled jump</div></div>
+            <div class="recording-chip reveal"><span class="emoji">&#128563;</span><div class="name">Shy</div><div class="desc">Bashful duck</div></div>
+            <div class="recording-chip reveal"><span class="emoji">&#9728;&#65039;</span><div class="name">Wake Up</div><div class="desc">Power-on sequence</div></div>
+        </div>
+    </section>
+
+    <!-- CTA -->
+    <section class="cta">
+        <div class="reveal">
+            <h2>Ready to bring your<br><span class="gradient">lamp to life?</span></h2>
+            <p>Clone the repo, plug in USB, and start talking to your robot. No cloud accounts, no subscriptions, no Pi.</p>
+            <div class="hero-buttons">
+                <a href="/control" class="btn-primary">
+                    Open Control Panel
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                </a>
+                <a href="https://github.com/kabilankb/lelamp-local-control" target="_blank" class="btn-secondary">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+                    Star on GitHub
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- FOOTER -->
+    <footer>
+        <div class="footer-brand">LeLamp Local Control</div>
+        <div class="footer-links">
+            <a href="https://github.com/humancomputerlab/LeLamp" target="_blank">Original LeLamp</a>
+            <a href="https://www.humancomputerlab.com" target="_blank">Human Computer Lab</a>
+            <a href="https://github.com/kabilankb/lelamp-local-control" target="_blank">GitHub</a>
+        </div>
+    </footer>
+
+    <!-- Scroll reveal script -->
+    <script>
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('visible');
+                }
+            });
+        }, { threshold: 0.1 });
+
+        document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+    </script>
+</body>
+</html>
