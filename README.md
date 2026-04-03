@@ -2,6 +2,9 @@
 
 Digital twin of the LeLamp robot in NVIDIA Isaac Sim, with real robot mirroring and recording playback.
 
+![Image](https://github.com/user-attachments/assets/dd79863c-20dd-47eb-aee6-79ddae246f87)
+
+
 ## Architecture
 
 ```
