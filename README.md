@@ -28,6 +28,104 @@ LeLamp/simulation/
 └── config.json             # Onshape export config
 ```
 
+## Setup
+
+### Prerequisites
+
+- **Ubuntu 22.04+** (tested on 24.04)
+- **NVIDIA GPU** with driver 535+ (for Isaac Sim rendering)
+- **Conda** (Miniconda or Anaconda)
+- **LeLamp hardware** (optional, only for mirror/record-sim modes)
+  - Feetech STS3215 servos (x5)
+  - USB servo controller board at `/dev/ttyACM0`
+  - Calibrated via `uv run -m lelamp.calibrate`
+
+### 1. Create Conda Environment
+
+```bash
+conda create -n leisaac python=3.11 -y
+conda activate leisaac
+```
+
+### 2. Install Isaac Sim
+
+```bash
+pip install isaacsim==4.5.0
+pip install isaacsim-extscache-physics isaacsim-extscache-kit isaacsim-extscache-kit-sdk
+```
+
+Verify installation:
+```bash
+python -c "from isaacsim import SimulationApp; print('Isaac Sim OK')"
+```
+
+### 3. Install scservo_sdk (for real robot modes)
+
+```bash
+pip install scservo-sdk
+```
+
+### 4. Clone and Navigate
+
+```bash
+git clone https://github.com/kabilankb/lelamp-local-control.git
+cd lelamp-local-control
+git checkout feature/isaacsim-digital-twin
+cd simulation
+```
+
+### 5. Fix USD Assets (first time only)
+
+```bash
+python fix_usd.py
+```
+
+This renames Chinese-character prims and fixes broken IMU references in the robot USD files.
+
+### 6. Add Diffuser Light (optional)
+
+```bash
+python add_diffuser_light.py
+```
+
+Adds a warm-white DiskLight to the lamp head for realistic lighting.
+
+### 7. Verify
+
+```bash
+# Should open Isaac Sim window with robot on grid
+python launch_isaacsim.py --mode sim-only --recording idle --loop
+```
+
+### Kitchen Environment (optional)
+
+Download the kitchen scene USD and place it at:
+```
+~/Downloads/kitchen_with_orange/scene.usd
+```
+
+Then run:
+```bash
+python launch_kitchen.py --mode sim-only
+```
+
+### Calibration
+
+The joint conversion values in the launch scripts are derived from:
+```
+~/.cache/huggingface/lerobot/calibration/robots/lelamp_follower/lelamp.json
+```
+
+If you recalibrate the real robot (`uv run -m lelamp.calibrate`), you'll need to recompute the scale/offset values. See the [simulation README](simulation/README.md) for the formula.
+
+### USB Permissions (Linux)
+
+If `/dev/ttyACM0` requires root access:
+```bash
+sudo usermod -a -G dialout $USER
+# Log out and back in
+```
+
 ## Quick Start
 
 ```bash
