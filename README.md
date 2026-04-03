@@ -1,669 +1,183 @@
-# LeLamp Runtime
+# LeLamp Isaac Sim Simulation
 
-![](./assets/images/Banner.png)
+Digital twin of the LeLamp robot in NVIDIA Isaac Sim, with real robot mirroring and recording playback.
 
-This repository holds the code for controlling LeLamp — an open source robot lamp based on [Apple's Elegnt](https://machinelearning.apple.com/research/elegnt-expressive-functional-movement), made by [Human Computer Lab](https://www.humancomputerlab.com/). Runs fully on a local Linux system (desktop/laptop) without a Raspberry Pi. The servo motors connect directly via USB, and the RGB LEDs are simulated in the terminal. Includes web control panel with hands-free voice interaction.
-
-[LeLamp](https://github.com/humancomputerlab/LeLamp)
-
-## Table of Contents
-
-- [Architecture Overview](#architecture-overview)
-- [What Changed vs. Original](#what-changed-vs-original)
-- [Prerequisites](#prerequisites)
-- [Installation](#installation)
-- [Hardware Wiring](#hardware-wiring)
-- [Motor Setup](#motor-setup)
-- [Calibration](#calibration)
-- [Testing](#testing)
-- [Recording & Replaying Movements](#recording--replaying-movements)
-- [Running the Agent](#running-the-agent)
-- [Web Control Panel](#web-control-panel)
-- [Available Recordings](#available-recordings)
-- [Start upon Boot](#start-upon-boot)
-- [Troubleshooting](#troubleshooting)
-- [Contributing](#contributing)
-
----
-
-## Architecture Overview
+## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                    Local Linux PC                        │
-│                                                          │
-│  ┌────────────┐ ┌────────────┐ ┌──────────┐ ┌────────┐ │
-│  │ Web Panel  │ │  Voice     │ │ Claude   │ │ Gemini │ │
-│  │ web_agent  │ │  Agent     │ │ Agent    │ │ Agent  │ │
-│  │   .py      │ │ voice_agent│ │ claude_  │ │ gemini_│ │
-│  │ + ASR/TTS  │ │   .py      │ │ agent.py │ │ agent  │ │
-│  └─────┬──────┘ └─────┬──────┘ └────┬─────┘ └───┬────┘ │
-│        │              │             │            │      │
-│        └──────┬───────┴─────────────┴────────────┘      │
-│               │                                          │
-│  ┌────────────▼─────────────────┐                        │
-│  │       Service Layer          │                        │
-│  │  ┌──────────┐ ┌───────────┐  │    ┌──────────────┐   │
-│  │  │  Motors   │ │    RGB    │  │    │   Ollama     │   │
-│  │  │ Service   │ │  Service  │  │    │  (llama3)    │   │
-│  │  └─────┬────┘ └─────┬────┘  │    └──────────────┘   │
-│  └────────┼─────────────┼──────┘                        │
-│           │             │                                │
-│     USB Serial      Terminal                             │
-│    /dev/ttyACM0     Simulator                            │
-│           │                                              │
-└───────────┼──────────────────────────────────────────────┘
-            │
-    ┌───────▼────────┐
-    │ Feetech Servo  │
-    │ Controller USB │
-    │ + STS3215 x5   │
-    └────────────────┘
+LeLamp/simulation/
+├── launch_isaacsim.py      # Main launcher (flat grid scene)
+├── launch_kitchen.py       # Kitchen environment scene
+├── add_diffuser_light.py   # Add DiskLight to lamp head
+├── fix_usd.py              # Fix Chinese prim names + imu_site reference
+├── test_loop.py            # Minimal Isaac Sim loop test
+├── test_loop2.py           # Loop test with robot + articulation
+├── robot.urdf              # Fixed URDF (ASCII names, joint_1-5)
+├── robot.urdf.bak          # Original URDF backup
+├── robot/                  # USD (imported from URDF)
+│   ├── robot.usd           # Main robot USD (references sublayers)
+│   └── configuration/
+│       ├── robot_base.usd      # Link transforms, visuals, colliders
+│       ├── robot_physics.usd   # Joint physics, drives, articulation
+│       ├── robot_robot.usd     # Robot metadata
+│       └── robot_sensor.usd    # Sensor config
+├── assets/                 # STL meshes from Onshape
+└── config.json             # Onshape export config
 ```
 
-## Project Structure
-
-```
-lelamp_runtime/
-├── main.py                 # LiveKit voice agent (Raspberry Pi)
-├── smooth_animation.py     # LiveKit agent with smooth animations
-├── claude_agent.py         # Claude API text agent (local)
-├── gemini_agent.py         # Gemini API text agent (local)
-├── voice_agent.py          # Offline voice agent (Whisper + Ollama + edge-tts)
-├── web_agent.py            # Web control panel (Flask + Ollama)
-├── templates/              # Web UI templates
-├── pyproject.toml          # Project configuration and dependencies
-├── lelamp/                 # Core package
-│   ├── setup_motors.py     # Motor configuration and setup
-│   ├── calibrate.py        # Motor calibration utilities
-│   ├── list_recordings.py  # List all recorded motor movements
-│   ├── record.py           # Movement recording functionality
-│   ├── replay.py           # Movement replay functionality
-│   ├── follower/           # Follower mode functionality
-│   ├── leader/             # Leader mode functionality
-│   ├── service/            # Motor and RGB service layer
-│   └── test/               # Hardware testing modules
-└── uv.lock                 # Dependency lock file
-```
-
-## What Changed vs. Original
-
-| Component | Original (Raspberry Pi) | Local (This Setup) |
-|-----------|------------------------|-------------------|
-| Servo Motors | USB serial via Pi | USB serial directly to PC |
-| RGB LEDs | WS281x via Pi GPIO | Terminal simulator (colored blocks) |
-| Volume Control | `sudo -u pi amixer` | Standard `amixer` |
-| Voice Agent | LiveKit + OpenAI only | Browser ASR/TTS + Ollama (free) |
-| NeoPixel lib | `rpi-ws281x` required | Auto-detected, falls back to software |
-| Python | System Python on Pi | Python 3.12 via `uv` |
-| Web UI | None | Full control panel at localhost:5000 |
-
-### Modified Files
-
-- `lelamp/service/rgb/rgb_service.py` — Auto-detects Pi hardware; uses console simulator on local systems
-- `main.py` — Volume control uses standard Linux `amixer` (no `sudo -u pi`)
-- `smooth_animation.py` — Same volume control fix
-- `pyproject.toml` — Added `anthropic`, `google-genai`, `ollama`, `flask-socketio`, `faster-whisper`, `edge-tts` dependencies
-
-### New Files
-
-- `web_agent.py` — Web control panel with chat, LED viz, voice ASR/TTS (Ollama)
-- `voice_agent.py` — Offline terminal voice agent (Whisper + Ollama + Edge TTS)
-- `claude_agent.py` — Claude API text agent
-- `gemini_agent.py` — Gemini API text agent
-- `templates/index.html` — Web control panel UI
-- `templates/landing.html` — Landing page
-
----
-
-## Prerequisites
-
-- **OS**: Linux (Ubuntu/Debian recommended)
-- **Python**: 3.12+ (installed automatically by `uv`)
-- **USB port**: For Feetech servo controller board
-- **System packages**:
-  ```bash
-  sudo apt-get install -y portaudio19-dev alsa-utils
-  ```
-- **Ollama** (for free local LLM):
-  ```bash
-  curl -fsSL https://ollama.com/install.sh | sh
-  ollama pull llama3
-  ```
-
-### Hardware Required
-
-- Feetech STS3215 servo motors x5
-- Feetech servo controller board (USB interface)
-- USB cable (controller board to PC)
-- Assembled LeLamp body (see [main LeLamp repo](https://github.com/humancomputerlab/LeLamp))
-
----
-
-## Installation
+## Quick Start
 
 ```bash
-# 1. Clone the repository
-git clone https://github.com/humancomputerlab/lelamp_runtime.git
-cd lelamp_runtime
+# Sim only — interactive recording picker
+python launch_isaacsim.py --mode sim-only
 
-# 2. Install uv (if not installed)
-curl -LsSf https://astral.sh/uv/install.sh | sh
+# Sim only — specific recording, looped
+python launch_isaacsim.py --mode sim-only --recording happy_wiggle --loop
 
-# 3. Install Python 3.12 (if needed)
-uv python install 3.12
+# Mirror real robot (reads /dev/ttyACM0)
+python launch_isaacsim.py --mode mirror --port /dev/ttyACM0
 
-# 4. Install all dependencies (NO --extra hardware needed)
-uv sync
+# Play recording on both real robot + sim
+python launch_isaacsim.py --mode record-sim --port /dev/ttyACM0 --recording excited
 
-# If slow, use:
-# UV_CONCURRENT_DOWNLOADS=1 uv sync
-
-# If LFS issues:
-# GIT_LFS_SKIP_SMUDGE=1 uv sync
+# Kitchen environment
+python launch_kitchen.py --mode sim-only
+python launch_kitchen.py --mode mirror --port /dev/ttyACM0
 ```
 
-### Dependencies
+## Modes
 
-The runtime includes several key dependencies:
+| Mode | Hardware | Description |
+|------|----------|-------------|
+| `sim-only` | None | Play recordings in simulation only |
+| `mirror` | /dev/ttyACM0 | Real robot leads, sim follows in real-time |
+| `record-sim` | /dev/ttyACM0 | Play recording on both real robot + sim simultaneously |
 
-- **feetech-servo-sdk**: For servo motor control
-- **lerobot**: Robotics framework integration
-- **ollama**: Local LLM integration
-- **flask-socketio**: Web control panel
-- **faster-whisper**: Local speech recognition
-- **edge-tts**: Text-to-speech
-- **anthropic**: Claude API agent
-- **google-genai**: Gemini API agent
-- **numpy**: Mathematical operations
-- **sounddevice**: Audio input/output
+## Robot Configuration
 
----
+### Joint Mapping
 
-## Hardware Wiring
+| Runtime Name | Servo ID | URDF Joint | Kinematic Chain |
+|-------------|----------|------------|-----------------|
+| base_yaw | 1 | joint_1 | lamparm\_\_wrist\_head -> scs215\_v5 |
+| base_pitch | 2 | joint_2 | lamparm\_\_base\_elbow -> lamparm\_\_wrist\_head |
+| elbow_pitch | 3 | joint_3 | lamparm\_\_base\_elbow -> lamparm\_\_elbow\_wrist |
+| wrist_roll | 4 | joint_4 | lamparm\_\_elbow\_wrist -> lamparm\_\_wrist\_head\_2 |
+| wrist_pitch | 5 | joint_5 | lamparm\_\_wrist\_head\_2 -> diffuser |
 
-Connect the Feetech servo controller board to your PC via USB. The servos connect in a daisy chain to the controller board.
-
-### Find Your Serial Port
-
-```bash
-uv run lerobot-find-port
-```
-
-Common ports on Linux:
-- `/dev/ttyACM0` — most common for Feetech USB boards
-- `/dev/ttyACM1` — if another device is on ACM0
-- `/dev/ttyUSB0` — for USB-to-serial adapters
-
-### Permission Fix
-
-If you get a "Permission denied" error on the serial port:
-
-```bash
-sudo usermod -a -G dialout $USER
-# Then log out and log back in
-```
-
----
-
-## Motor Setup
-
-This assigns a unique ID (1-5) to each servo motor. **Only one motor should be connected at a time.**
-
-```bash
-uv run -m lelamp.setup_motors --id lelamp --port /dev/ttyACM0
-```
-
-The command will prompt you to connect each motor one at a time, in this order:
-
-| Step | Motor | ID | Physical Joint |
-|------|-------|----|----------------|
-| 1 | `wrist_pitch` | 5 | Lamp head tilt (up/down) |
-| 2 | `wrist_roll` | 4 | Lamp head rotation |
-| 3 | `elbow_pitch` | 3 | Middle joint bend |
-| 4 | `base_pitch` | 2 | Base tilt (forward/back) |
-| 5 | `base_yaw` | 1 | Base rotation (left/right) |
-
-**Procedure for each step:**
-1. Disconnect all other motors from the controller board
-2. Connect ONLY the motor listed in the prompt
-3. Press Enter
-4. Wait for confirmation, then move to next motor
-
-After all 5 motors are set up, **reconnect them all** in the daisy chain.
-
----
-
-## Calibration
-
-Calibration teaches the system each motor's range of motion.
-
-```bash
-uv run -m lelamp.calibrate --id lelamp --port /dev/ttyACM0
-```
-
-### Calibration Process
-
-1. **Mid-position**: Move the lamp to the middle of its range of motion, press Enter
-2. **Range recording**: Move each joint through its full range of motion, press Enter when done
-3. Repeat for both follower and leader modes
-
-### Calibrate Only One Mode
-
-```bash
-# Follower only
-uv run -m lelamp.calibrate --id lelamp --port /dev/ttyACM0 --follower-only
-
-# Leader only
-uv run -m lelamp.calibrate --id lelamp --port /dev/ttyACM0 --leader-only
-```
-
-Calibration data is saved automatically and reused on future connections.
-
----
-
-## Testing
-
-### Test Motors
-
-```bash
-uv run -m lelamp.test.test_motors --id lelamp --port /dev/ttyACM0
-```
-
-Plays the first available recording to verify motor control.
-
-### Test RGB LEDs
-
-```bash
-uv run -m lelamp.test.test_rgb
-```
-
-On local systems, this outputs colored blocks to the terminal:
-```
-[LED] ████████████████████████████████████████   (red)
-[LED] ████████████████████████████████████████   (green)
-[LED] ████████████████████████████████████████   (blue)
-[LED] █████████████████████████████████████████  (pattern)
-```
-
-### Test Audio
-
-```bash
-uv run -m lelamp.test.test_audio
-```
-
----
-
-## Recording & Replaying Movements
-
-### Record a Movement
-
-Put the lamp in recording mode, physically move it, then press Ctrl+C to stop:
-
-```bash
-uv run -m lelamp.record --id lelamp --port /dev/ttyACM0 --name my_movement
-```
-
-Options:
-- `--fps 30` — Recording frame rate (default: 30)
-
-### Replay a Movement
-
-```bash
-uv run -m lelamp.replay --id lelamp --port /dev/ttyACM0 --name my_movement
-```
-
-### List All Recordings
-
-```bash
-uv run -m lelamp.list_recordings --id lelamp
-```
-
-### Recording Format
-
-Movements are stored as CSV files in `lelamp/recordings/`:
+### Articulation Structure
 
 ```
-lelamp/recordings/
-├── curious.csv
-├── excited.csv
-├── happy_wiggle.csv
-├── headshake.csv
-├── idle.csv
-├── nod.csv
-├── sad.csv
-├── scanning.csv
-├── shock.csv
-├── shy.csv
-└── wake_up.csv
+World
+└── root_joint (fixed) -> lamparm__base_elbow (articulation root)
+    ├── joint_2 -> lamparm__wrist_head
+    │   └── joint_1 -> scs215_v5 (kinematic, excluded from articulation)
+    │       └── imu_site_frame -> imu_site (excluded from articulation)
+    └── joint_3 -> lamparm__elbow_wrist
+        └── joint_4 -> lamparm__wrist_head_2
+            └── joint_5 -> diffuser (lamp head + DiskLight)
 ```
 
-Each CSV contains timestamped joint positions:
-```csv
-timestamp,base_yaw.pos,base_pitch.pos,elbow_pitch.pos,wrist_roll.pos,wrist_pitch.pos
-1234567890.123,45.0,30.0,60.0,0.0,15.0
+### Base Fixture
+
+`scs215_v5` (containing `lamp_base` and `lamp_base_cover` meshes) is the physical lamp base:
+- Set to **kinematic** (`PhysicsRigidBodyAPI.kinematicEnabled = True`) so it stays fixed
+- `joint_1` and `imu_site_frame` are **excluded from the articulation** (`physics:excludeFromArticulation = True`)
+- This decouples the base from the articulation tree while keeping joints 2-5 active
+
+### Joint Calibration
+
+Conversion from runtime normalized values `[-100, 100]` to simulation radians:
+
+```
+rad = scale * norm_value + offset
 ```
 
----
+| Joint | Scale (rad/unit) | Offset (rad) | Source |
+|-------|-----------------|--------------|--------|
+| joint_1 | 0.020962 | 0.223194 | base_yaw calibration |
+| joint_2 | 0.016437 | 0.272282 | base_pitch calibration |
+| joint_3 | 0.012885 | -1.285476 | elbow_pitch calibration |
+| joint_4 | 0.031408 | -0.000767 | wrist_roll calibration |
+| joint_5 | 0.017020 | 1.241757 | wrist_pitch calibration |
 
-## Running the Agent
+Derived from: `~/.cache/huggingface/lerobot/calibration/robots/lelamp_follower/lelamp.json`
 
-### Option 1: Web Control Panel (Recommended)
+Formula:
+1. `ticks = ((norm + 100) / 200) * (range_max - range_min) + range_min`
+2. `rad = ((ticks - 2048) / 4096) * 2pi`
+3. Simplified to: `rad = scale * norm + offset`
 
-Full browser UI with hands-free voice chat, LED visualization, color control, and all 11 movement buttons. Uses Ollama (free, local).
+### Real Robot Communication
 
-```bash
-uv run python web_agent.py --port /dev/ttyACM0 --id lelamp
-```
+Uses `scservo_sdk` directly (not `lerobot`) to avoid Python version mismatch between Isaac Sim (3.11) and lelamp_runtime venv (3.12).
 
-Open **http://localhost:5000** in Chrome/Edge.
+- **Protocol**: Feetech STS3215 serial protocol
+- **Baud rate**: 1 Mbps
+- **Read**: `Present_Position` at address 56 (2 bytes), group sync read
+- **Write**: `Goal_Position` at address 42 (2 bytes), group sync write with calibrated tick conversion
+- **Mirror mode**: Background thread reads servos at 60 FPS, main loop reads latest values non-blocking
 
-- **Landing page** at `/` — project overview
-- **Control panel** at `/control` — chat, voice, LEDs, movements
+### Drive Parameters
 
-Features:
-- Always-on ASR — just speak, no button needed (uses Browser Web Speech API)
-- TTS — LeLamp speaks back (Browser TTS or Edge TTS neural voice)
-- Live 8x5 LED grid visualization
-- RGB color picker with sliders
-- All 11 movement buttons
+Matching real robot PID coefficients:
+- **P (stiffness)**: 16 (real robot default reduced from 32 to avoid shakiness)
+- **I**: 0
+- **D (damping)**: 32
 
-### Option 2: Offline Voice Agent (Terminal)
+## USD Fixes Applied
 
-Fully offline voice agent with Whisper ASR + Ollama + Edge TTS.
+1. **Chinese prim names** (`金属舵盘_驱动/从动`) renamed to `metal_horn_drive/driven` in `robot_base.usd` and `robot_physics.usd` (run `fix_usd.py`)
+2. **Broken imu_site reference** cleared in `robot_base.usd`
+3. **Black material** applied to all 63 visual meshes
+4. **DiskLight** added to `/simulation/diffuser/lamp_light` (warm white, 90 deg cone)
 
-```bash
-uv run python voice_agent.py --port /dev/ttyACM0 --id lelamp
-```
+## URDF Fixes Applied
 
-Options:
-```bash
-# Faster but less accurate ASR
-uv run python voice_agent.py --port /dev/ttyACM0 --whisper-model tiny
+1. **Chinese material names** renamed to ASCII (mesh filenames kept as-is for STL references)
+2. **Numeric joint names** (`1`-`5`) renamed to `joint_1`-`joint_5`
+3. Original backed up as `robot.urdf.bak`
 
-# More accurate ASR
-uv run python voice_agent.py --port /dev/ttyACM0 --whisper-model small
-```
+## Recordings
 
-Color indicators:
-- Blue LED — Listening
-- Yellow LED — Processing speech
-- Purple LED — Thinking (Ollama)
-- Green LED — Speaking
+Located at `/home/zeux/lelamp_runtime/lelamp/recordings/`:
 
-### Option 3: Claude API Agent (Text Chat)
+| Name | Description |
+|------|-------------|
+| curious | Curious looking around |
+| excited | Excited bouncing |
+| happy_wiggle | Happy side-to-side wiggle |
+| headshake | Shaking head no |
+| idle | Idle breathing motion |
+| nod | Nodding yes |
+| sad | Drooping sad pose |
+| scanning | Scanning environment |
+| shock | Surprised reaction |
+| shy | Shy retreating motion |
+| wake_up | Waking up animation |
 
-Requires Anthropic API key with credits.
+Format: CSV with columns `timestamp, base_yaw.pos, base_pitch.pos, elbow_pitch.pos, wrist_roll.pos, wrist_pitch.pos` at 30 FPS.
 
-**Setup** — Add to `.env`:
-```
-ANTHROPIC_API_KEY=sk-ant-...
-```
+## Dependencies
 
-**Run:**
-```bash
-uv run python claude_agent.py --port /dev/ttyACM0 --id lelamp
-```
-
-### Option 4: Gemini API Agent (Text Chat)
-
-Requires Google Gemini API key.
-
-**Setup** — Add to `.env`:
-```
-GOOGLE_API_KEY=your-gemini-key
-```
-
-**Run:**
-```bash
-uv run python gemini_agent.py --port /dev/ttyACM0 --id lelamp
-```
-
-### Option 5: LiveKit + OpenAI Voice Agent (Original)
-
-Requires LiveKit and OpenAI accounts.
-
-**Setup** — Add to `.env`:
-```
-OPENAI_API_KEY=sk-...
-LIVEKIT_URL=wss://...
-LIVEKIT_API_KEY=...
-LIVEKIT_API_SECRET=...
-```
-
-**Run:**
-```bash
-# Discrete animation mode
-uv run main.py console
-
-# Smooth animation mode
-uv run smooth_animation.py console
-```
-
-### All Agents Summary
-
-| Agent | Command | LLM | Voice | Cost |
-|-------|---------|-----|-------|------|
-| Web Panel | `uv run python web_agent.py` | Ollama (local) | Browser ASR + TTS | Free |
-| Voice Agent | `uv run python voice_agent.py` | Ollama (local) | Whisper + Edge TTS | Free |
-| Claude Agent | `uv run python claude_agent.py` | Claude Sonnet | Text only | Paid |
-| Gemini Agent | `uv run python gemini_agent.py` | Gemini 2.0 Flash | Text only | Free tier |
-| LiveKit Agent | `uv run main.py console` | OpenAI Realtime | Full voice | Paid |
-
----
-
-## Web Control Panel
-
-### Pages
-
-| URL | Description |
-|-----|-------------|
-| `http://localhost:5000` | Landing page — project overview, features, setup guide |
-| `http://localhost:5000/control` | Control panel — chat, voice, LEDs, movements |
-
-### Control Panel Features
-
-**Chat** — Type messages or speak hands-free. LeLamp responds with text, movements, and LED colors.
-
-**Voice (ASR/TTS):**
-- Always-on speech recognition — just speak (Chrome/Edge required)
-- Auto-sends after 0.8s of silence
-- TTS reads responses aloud (toggle on/off)
-- Two TTS modes: Browser (fast) or Edge TTS (better quality, neural voice)
-- ASR pauses during TTS to avoid hearing itself
-
-**LED Display** — Live 8x5 grid showing current LED colors in real-time.
-
-**Color Control** — RGB sliders (0-255) with preview and Apply button.
-
-**Movements** — All 11 pre-loaded expressions as clickable buttons.
-
----
-
-## Available Recordings
-
-All 11 pre-loaded expressive movements:
-
-| Recording | Emoji | Description |
-|-----------|-------|-------------|
-| `curious` | &#128064; | Inquisitive head tilt |
-| `excited` | &#127881; | Energetic bouncing motion |
-| `happy_wiggle` | &#128522; | Joyful side-to-side wiggle |
-| `headshake` | &#128528; | Disapproving head shake (no) |
-| `idle` | &#128564; | Subtle breathing/resting motion (loops) |
-| `nod` | &#128077; | Agreeing nod (yes) |
-| `sad` | &#128546; | Drooping, disappointed posture |
-| `scanning` | &#128269; | Looking around the room |
-| `shock` | &#9889; | Startled jump reaction |
-| `shy` | &#128563; | Bashful ducking motion |
-| `wake_up` | &#9728;&#65039; | Power-on startup sequence |
-
----
-
-## Start upon Boot
-
-If you want to start LeLamp's voice app upon booting, create a systemd service file:
-
-```bash
-sudo nano /etc/systemd/system/lelamp.service
-```
-
-Add this content:
-
-```ini
-[Unit]
-Description=Lelamp Runtime Service
-After=network.target
-
-[Service]
-Type=simple
-User=pi
-WorkingDirectory=/home/pi/lelamp_runtime
-ExecStart=/usr/bin/sudo uv run main.py console
-Restart=always
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Then enable and start the service:
-
-```bash
-sudo systemctl daemon-reload
-sudo systemctl enable lelamp.service
-sudo systemctl start lelamp.service
-```
-
-For other service controls:
-
-```bash
-# Disable from starting on boot
-sudo systemctl disable lelamp.service
-
-# Stop the currently running service
-sudo systemctl stop lelamp.service
-
-# Check status (should show "disabled" and "inactive")
-sudo systemctl status lelamp.service
-```
-
-Note: Boot time might vary with each run and extended usage (>1 hour) can burn the motors.
-
----
+- **Isaac Sim** (pip install `isaacsim` in conda env `leisaac`)
+- **scservo_sdk** (for real robot communication)
+- **Python 3.11** (Isaac Sim requirement)
 
 ## Troubleshooting
 
-### Serial Port Not Found
+### Sim app shuts down immediately
+Use `while True: simulation_app.update()` loop pattern. Do NOT use `World.step()` or `simulation_app.is_running()` — they cause premature shutdown with pip-installed Isaac Sim.
 
-```
-No such file or directory: '/dev/ttyACM0'
-```
-
-- Check USB cable connection
-- Run `ls /dev/ttyACM* /dev/ttyUSB*` to find available ports
-- Run `uv run lerobot-find-port` to auto-detect
-
-### Permission Denied on Serial Port
-
-```
-PermissionError: [Errno 13] Permission denied: '/dev/ttyACM0'
+### "Physics Simulation View not created" warning
+Add warm-up steps after `articulation.initialize()`:
+```python
+for _ in range(20):
+    simulation_app.update()
 ```
 
-```bash
-sudo usermod -a -G dialout $USER
-# Log out and back in
-```
+### Joint motions don't match real robot
+Check calibration file matches: `~/.cache/huggingface/lerobot/calibration/robots/lelamp_follower/lelamp.json`. Re-run `uv run -m lelamp.calibrate` if needed.
 
-### Motor Not Responding
-
-- Verify power supply to servo controller board
-- Check daisy chain connections between servos
-- Re-run motor setup: `uv run -m lelamp.setup_motors --id lelamp --port /dev/ttyACM0`
-- Re-run calibration: `uv run -m lelamp.calibrate --id lelamp --port /dev/ttyACM0`
-
-### RGB LEDs Show in Terminal Instead of Physical LEDs
-
-This is expected on local systems without a Raspberry Pi. The `_SoftwareStrip` class in `rgb_service.py` prints colored Unicode blocks to simulate LED output. To use real WS281x LEDs, run on a Raspberry Pi with `uv sync --extra hardware`.
-
-### Voice Not Working in Browser
-
-- Use **Chrome or Edge** — Firefox does not support Web Speech API
-- Allow microphone access when prompted
-- Check that no other app is using the mic
-- Falls back to server-side Whisper ASR if browser ASR is unavailable
-
-### `ModuleNotFoundError: No module named 'lelamp'`
-
-Make sure you're running from the project directory:
-```bash
-cd ~/lelamp_runtime
-uv run -m lelamp.setup_motors ...
-```
-
-### `portaudio.h: No such file or directory`
-
-```bash
-sudo apt-get install -y portaudio19-dev
-uv sync
-```
-
-### Ollama Not Running
-
-```
-ConnectionError: Failed to connect to Ollama
-```
-
-```bash
-# Start Ollama service
-ollama serve
-
-# In another terminal, verify model is available
-ollama list
-```
-
-### Claude API Credit Error
-
-```
-anthropic.BadRequestError: Your credit balance is too low
-```
-
-Add credits at [console.anthropic.com/settings/billing](https://console.anthropic.com/settings/billing).
-
-### Gemini API Quota Exhausted
-
-```
-google.genai.errors.ClientError: 429 RESOURCE_EXHAUSTED
-```
-
-Wait for quota reset or enable billing at [aistudio.google.com](https://aistudio.google.com).
-
-### Motor Shaking/Vibrating
-
-The PID values are set in `lelamp_follower.py` (P=16, I=0, D=32). If motors shake:
-- Check power supply voltage (should be stable 6-7.4V)
-- Verify calibration is complete
-- Reduce `max_relative_target` in the config to limit movement speed
-
-### Extended Usage Warning
-
-Running servos continuously for >1 hour can overheat the motors. Allow cooling breaks during long sessions.
-
----
-
-## Contributing
-
-This is an open-source project by Human Computer Lab. Contributions are welcome through the GitHub repository.
-
-## Maintainers
-
-Maintained by [Human Computer Lab](https://www.humancomputerlab.com).
-
-## Acknowledgments & Sponsors
-
-See [CONTRIBUTORS.md](./CONTRIBUTORS.md) for contributors and their roles.
-See [SPONSORS.md](./SPONSORS.md) for sponsor thanks and how to support the project.
-
-## License
-
-Check the main [LeLamp repository](https://github.com/humancomputerlab/LeLamp) for licensing information.
+### "ModuleNotFoundError: lerobot"
+Expected — the scripts use `scservo_sdk` directly instead of `lerobot` to avoid the Python 3.11/3.12 version mismatch.
